@@ -1,3 +1,4 @@
+
 function love.load()
   local _, _, flags = love.window.getMode()
   WIDTH, HEIGHT = love.window.getDesktopDimensions(flags.display)
@@ -7,9 +8,9 @@ function love.load()
   -- Settings
   NUM_MODE = "RK"  -- Choose either EF (Euler Forward) or RK (Runge-Kutta)
   LINE_WIDTH = 2
-  dt = 0.02
-  disturbance_y = -70  -- Added to velocity to change trajectory
-  disturbance_x = -100
+  dt = 0.1
+  disturbance_y = 0  -- Added to velocity to change trajectory
+  disturbance_x = 0
   trajectory_radius = 2
   sun_radius = 20
   planet_radius = 10
@@ -69,6 +70,7 @@ function love.update()
   -- print(string.format("x=%d, y=%d, time=%d", x[1], x[2], time))
 end
 
+
 function EF_update()
   -- Calculate distance between sun and planet
   dist = ((x[1]-sun_x[1])^2 + (x[2]-sun_x[2])^2)^(1/2)
@@ -83,15 +85,17 @@ function EF_update()
   x = {x[1]+v[1]*dt, x[2]+v[2]*dt}
 end
 
+-- Numerical functions
+
 function RK_update()
   -- S is the state, S = [x,y,v_x,v_y]. D is dS/dt
   S = {x[1], x[2], v[1], v[2]}
+  setmetatable(S, metavector)
   k1 = D(S)
-  k2 = D(add_tables(S,multiply_table(k1,dt/2)))
-  k3 = D(add_tables(S,multiply_table(k2,dt/2)))
-  k4 = D(add_tables(S,multiply_table(k3,dt)))
-
-  S = add_tables(S,multiply_table(add_tables(k1, add_tables(multiply_table(k2,2), add_tables(multiply_table(k3,2),k4))), dt/6))
+  k2 = D(S+(k1*(dt/2)))
+  k3 = D(S+(k2*(dt/2)))
+  k4 = D(S+(k3*dt))
+  S = S + (k1 + k2*2 + k3*2 + k4) * (dt/6)
   x = {S[1], S[2]}
   v = {S[3], S[4]}
 end
@@ -106,26 +110,30 @@ function D(S)
   -- Acceleration vector from F=ma
   a = {F[1]/m_p, F[2]/m_p}
 
-  return {S[3], S[4], a[1], a[2]}
-end
-
--- Helper functions for tables
-
--- Multiply every element in table t with scalar c
-function multiply_table(t,c)
-  local res = {}
-  for k=1,#t do
-    res[k] = c * t[k]
-  end
+  res = {S[3], S[4], a[1], a[2]}
+  setmetatable(res, metavector)
   return res
 end
 
--- Add two tables elementwise
-function add_tables(t1,t2)
-  -- Assume tables have same length and are numerical
+-- Helper functions for vectors
+metavector = {}
+
+-- Multiply every element in vector v with scalar c
+function metavector.__mul(v,c)
   local res = {}
-  for k=1,#t1 do
-    res[k] = t1[k] + t2[k]
+  for k=1,#v do
+    res[k] = c * v[k]
   end
+  setmetatable(res, metavector)
+  return res
+end
+
+-- Add vectors elementwise
+function metavector.__add(v1,v2)
+  local res = {}
+  for k=1,#v1 do
+    res[k] = v1[k] + v2[k]
+  end
+  setmetatable(res,metavector)
   return res
 end
